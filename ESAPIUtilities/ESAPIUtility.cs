@@ -11,7 +11,7 @@ using Microsoft.VisualBasic;
 
 namespace ESAPIUtilities
 {
-    public class Utilities
+    public class ESAPIUtility
     {
         /// <summary>
         /// Get user input for which plans corresponding verification plans must be made.
