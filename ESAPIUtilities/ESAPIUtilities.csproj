@@ -33,6 +33,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Microsoft.VisualBasic" />
+    <Reference Include="PresentationCore" />
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Windows" />
@@ -51,6 +52,7 @@
       <HintPath>C:\Program Files\Varian\RTM\16.1\esapi\API\VMS.TPS.Common.Model.Types.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ESAPIUtility.cs" />
