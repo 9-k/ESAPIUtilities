@@ -87,10 +87,10 @@ namespace ESAPIUtilities
         /// <param name="calcOptions"></param>
         /// <exception cref="ApplicationException"></exception>
         public static void CreateVerificationPlans(Patient patient,
-                                            List<ExternalPlanSetup> selectedPlans,
-                                            string QAcourseId,
-                                            Dictionary<string, Dictionary<string, string>> QADetails,
-                                            Dictionary<string, Dictionary<string, string>> calcOptions)
+                                                   List<ExternalPlanSetup> selectedPlans,
+                                                   string QAcourseId,
+                                                   Dictionary<string, Dictionary<string, string>> QADetails,
+                                                   Dictionary<string, Dictionary<string, string>> calcOptions)
         {
             foreach (ExternalPlanSetup plan in selectedPlans)
             {
@@ -122,6 +122,7 @@ namespace ESAPIUtilities
                 if (plan != verifiedPlan) { throw new ApplicationException($"Error: verified plan {verifiedPlan.Id} != loaded plan {plan.Id}!"); }
             }
         }
+
         /// <summary>
         /// Create verifications plans for a given treatment plan. This was mostly edited from LDClark's CreateVerificationPlan.
         /// </summary>
@@ -151,70 +152,60 @@ namespace ESAPIUtilities
             .DefaultIfEmpty(0)
             .Max() + 1;
 
-            // rename plan. evil lives here
+            // rename plan with incremented counter
             course.ExternalPlanSetups.Where(o => o.Id.Equals(verificationPlan.Id)).SingleOrDefault();
             verificationPlan.Id = verifiedPlan.Id.Substring(0, Math.Min((10 - QANum.ToString().Length), verifiedPlan.Id.Length)) + "_QA" + QANum.ToString();
 
             // Put isocenter to the center of the QAdevice
             VVector isocenter = verificationPlan.StructureSet.Image.UserOrigin;
-            var beamList = verifiedPlan.Beams.ToList(); //used for looping later
-            foreach (Beam beam in verifiedPlan.Beams)
+            var verifiedBeams = verifiedPlan.Beams.ToList(); //used for looping later
+            foreach (Beam verifiedBeam in verifiedPlan.Beams)
             {
-                if (beam.IsSetupField)
-                    continue;
+                if (verifiedBeam.IsSetupField) continue;
 
+                Beam verificationBeam;
+
+                string PrimaryFluenceModelId = string.Empty;
+                if (verifiedBeam.EnergyModeDisplayName.Contains("FFF")) PrimaryFluenceModelId = "FFF";
+                if (verifiedBeam.EnergyModeDisplayName.Contains("SRS")) PrimaryFluenceModelId = "SRS";
                 ExternalBeamMachineParameters MachineParameters =
-                    new ExternalBeamMachineParameters(beam.TreatmentUnit.Id, beam.EnergyModeDisplayName, beam.DoseRate, beam.Technique.Id, string.Empty);
+                    new ExternalBeamMachineParameters(verifiedBeam.TreatmentUnit.Id, 
+                                                      verifiedBeam.EnergyModeDisplayName, 
+                                                      verifiedBeam.DoseRate, 
+                                                      verifiedBeam.Technique.Id, 
+                                                      PrimaryFluenceModelId);
 
-                if (beam.MLCPlanType.ToString() == "VMAT")
+                double collimatorAngle = verifiedBeam.ControlPoints.First().CollimatorAngle;
+                double gantryAngle = verifiedBeam.ControlPoints.First().GantryAngle;
+                IEnumerable<double> metersetWeights = verifiedBeam.ControlPoints.Select(cp => cp.MetersetWeight);
+                GantryDirection gantryDirection = verifiedBeam.GantryDirection;
+
+                if (verifiedBeam.MLCPlanType.ToString() == "VMAT")
                 {
-                    // Create a new VMAT beam.
-                    var collimatorAngle = beam.ControlPoints.First().CollimatorAngle;
-                    var gantryAngleStart = beam.ControlPoints.First().GantryAngle;
-                    var gantryAngleEnd = beam.ControlPoints.Last().GantryAngle;
-                    var gantryDirection = beam.GantryDirection;
-                    var metersetWeights = beam.ControlPoints.Select(cp => cp.MetersetWeight);
-                    verificationPlan.AddVMATBeam(MachineParameters, metersetWeights, collimatorAngle, gantryAngleStart,
+                    // Create a new VMAT verificationBeam.
+                    double gantryAngleEnd = verifiedBeam.ControlPoints.Last().GantryAngle;
+                    verificationBeam = verificationPlan.AddVMATBeam(MachineParameters, 
+                        metersetWeights, collimatorAngle, gantryAngle,
                         gantryAngleEnd, gantryDirection, 0.0, isocenter);
-                    continue;
+
                 }
-                else if (beam.MLCPlanType.ToString() == "DoseDynamic")
+                else if (verifiedBeam.MLCPlanType.ToString() == "DoseDynamic")
                 {
-                    // Create a new IMRT beam.
-                    double gantryAngle = beam.ControlPoints.First().GantryAngle;
-                    double collimatorAngle = beam.ControlPoints.First().CollimatorAngle;
-                    var metersetWeights = beam.ControlPoints.Select(cp => cp.MetersetWeight);
-                    verificationPlan.AddSlidingWindowBeam(MachineParameters, metersetWeights, collimatorAngle, gantryAngle,
+                    // Create a new IMRT verificationBeam.
+                    verificationBeam = verificationPlan.AddSlidingWindowBeam(MachineParameters, metersetWeights, collimatorAngle, gantryAngle,
                         0.0, isocenter);
-                    continue;
                 }
                 else
                 {
-                    var message = string.Format("Treatment field {0} is not VMAT or IMRT.", beam);
+                    var message = string.Format("Treatment field {0} is not VMAT or IMRT.", verifiedBeam);
                     throw new Exception(message);
                 }
-            }
 
-            int i = 0;
-            foreach (Beam verificationBeam in verificationPlan.Beams)
-            {
-                verificationBeam.Id = beamList[i].Id;
-                i++;
-            }
-
-            foreach (Beam verificationBeam in verificationPlan.Beams)
-            {
-                foreach (Beam verifiedBeam in verifiedPlan.Beams)
-                {
-                    //if (verificationBeam.Id == beam.Id && verificationBeam.MLCPlanType.ToString() == "DoseDynamic")
-                    if (verificationBeam.Id == verifiedBeam.Id)
-                    {
-                        var verifiedBeamEditableParams = verifiedBeam.GetEditableParameters();
-                        verifiedBeamEditableParams.Isocenter = verificationPlan.StructureSet.Image.UserOrigin;
-                        verificationBeam.ApplyParameters(verifiedBeamEditableParams);
-                        continue;
-                    }
-                }
+                verificationBeam.Comment = verifiedBeam.Comment;
+                verificationBeam.Id = verifiedBeam.Id;
+                verificationBeam.Name = verifiedBeam.Name;
+                if (verifiedBeam.GetOptimalFluence() != null) verificationBeam.SetOptimalFluence(verifiedBeam.GetOptimalFluence());
+                verificationBeam.ApplyParameters(verifiedBeam.GetEditableParameters());
             }
 
             verificationPlan.PlanNormalizationValue = verifiedPlan.PlanNormalizationValue;
@@ -224,22 +215,22 @@ namespace ESAPIUtilities
             verificationPlan.SetPrescription(numberOfFractions, verifiedPlan.DosePerFraction, verifiedPlan.TreatmentPercentage);
 
             verificationPlan.SetCalculationModel(CalculationType.PhotonVolumeDose, verifiedPlan.GetCalculationModel(CalculationType.PhotonVolumeDose));
-            foreach (KeyValuePair<String, String> calcModel in verifiedPlan.GetCalculationOptions(verifiedPlan.PhotonCalculationModel))
+            foreach (KeyValuePair<String, String> verifiedPlanCalcOptionAndValue in verifiedPlan.GetCalculationOptions(verifiedPlan.PhotonCalculationModel))
             {
-                verificationPlan.SetCalculationOption(verificationPlan.PhotonCalculationModel, calcModel.Key, calcModel.Value);
+                verificationPlan.SetCalculationOption(verificationPlan.PhotonCalculationModel, verifiedPlanCalcOptionAndValue.Key, verifiedPlanCalcOptionAndValue.Value);
             }
             if (calcOptions.ContainsKey(verificationPlan.GetCalculationModel(CalculationType.PhotonVolumeDose)))
             {
-                foreach (var ModelDictPair in calcOptions)
+                foreach (var ModelAndOptionValuePairPair in calcOptions)
                 {
-                    string model = ModelDictPair.Key;
-                    foreach (var OptionValuePair in ModelDictPair.Value)
+                    string model = ModelAndOptionValuePairPair.Key;
+                    foreach (var OptionValuePair in ModelAndOptionValuePairPair.Value)
                     {
                         string option = OptionValuePair.Key;
                         string value = OptionValuePair.Value;
                         // SetCalculationOption returns false if it can't find the setting to set, and we want that to throw an error because we can't have that slip by.
-                        // Testing this conditional does actually set the calculation option, though.
-                        if (!verificationPlan.SetCalculationOption(model, option, value)) { throw new ApplicationException($"Couldn't set setting {model},{option},{value}. Exiting."); }
+                        bool optionSetResult = verificationPlan.SetCalculationOption(model, option, value);
+                        if (!optionSetResult) { throw new ApplicationException($"Couldn't set setting {model},{option},{value}. Exiting."); }
                     }
                 }
             }
@@ -252,17 +243,13 @@ namespace ESAPIUtilities
                                     select new KeyValuePair<string, MetersetValue>(beam.Id, beam.Meterset)).ToList();
                 res = verificationPlan.CalculateDoseWithPresetValues(presetValues);
             }
-            else //vmat
+            else if (verificationPlan.Beams.FirstOrDefault().MLCPlanType.ToString() == "VMAT")
             {
                 res = verificationPlan.CalculateDose();
-
-                foreach (Beam beam in verificationPlan.Beams)
-                {
-                    foreach (BeamCalculationLog log in beam.CalculationLogs)
-                    {
-                        MessageBox.Show(string.Join(Environment.NewLine, log.MessageLines));
-                    }
-                }
+            }
+            else
+            {
+                throw new ApplicationException("Are you trying to calculate dose for a plan that's not IMRT or VMAT?");
             }
             if (!res.Success)
             {
