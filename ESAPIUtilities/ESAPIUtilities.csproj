@@ -55,6 +55,7 @@
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ESAPIDiff.cs" />
     <Compile Include="ESAPIVerifiers.cs" />
     <Compile Include="ESAPISelectors.cs" />
     <Compile Include="ESAPIUtility.cs" />
