@@ -39,6 +39,21 @@ namespace ESAPIUtilities
             return minDistance;
         }
 
+        /// <summary>
+        /// Gets the amount of the volume (either as a percent of total volume of the structure or absolute in cc) receiving XX% of the prescription dose.
+        /// </summary>
+        /// <param name="structure"></param>
+        /// <param name="plan"></param>
+        /// <param name="percent"></param>
+        /// <param name="vp"></param>
+        /// <returns></returns>
+        public static double GetVXX(Structure structure, ExternalPlanSetup plan, double percent, VolumePresentation vp)
+        {
+            DoseValue originalDosePerFraction = plan.DosePerFraction;
+            DoseValue scaledDosePerFraction = new DoseValue(originalDosePerFraction.Dose*percent/100, originalDosePerFraction.Unit);
+            return plan.GetVolumeAtDose(structure, scaledDosePerFraction, vp);
+        }
+
         public static Dictionary<string, string> SettingsDict(string settingsPathString)
         {
             Dictionary<string, string> settingsDict = new Dictionary<string, string>();
