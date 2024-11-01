@@ -11,6 +11,8 @@ using VMS.TPS.Common.Model.Types;
 using Microsoft.VisualBasic;
 using System.Windows.Media.Media3D;
 using System.IO;
+using System.Threading;
+using System.Windows.Automation;
 
 namespace ESAPIUtilities
 {
@@ -49,9 +51,8 @@ namespace ESAPIUtilities
         /// <returns></returns>
         public static double GetVXX(Structure structure, ExternalPlanSetup plan, double percent, VolumePresentation vp)
         {
-            DoseValue originalDosePerFraction = plan.DosePerFraction;
-            DoseValue scaledDosePerFraction = new DoseValue(originalDosePerFraction.Dose*percent/100, originalDosePerFraction.Unit);
-            return plan.GetVolumeAtDose(structure, scaledDosePerFraction, vp);
+            DoseValue DVToCheck = new DoseValue(plan.TotalDose.Dose*percent/100.0, plan.TotalDose.Unit);
+            return plan.GetVolumeAtDose(structure, DVToCheck, vp);
         }
 
         public static Dictionary<string, string> SettingsDict(string settingsPathString)
@@ -74,5 +75,37 @@ namespace ESAPIUtilities
             }
             return settingsDict;
         }
+
+        public static void AutoClickOk()
+        {
+            new Thread(() =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        // Look for windows with an "OK" button
+                        var rootElement = AutomationElement.RootElement;
+                        var okButton = rootElement.FindFirst(TreeScope.Descendants,
+                            new PropertyCondition(AutomationElement.NameProperty, "OK"));
+
+                        // Click "OK" if found
+                        if (okButton != null)
+                        {
+                            var invokePattern = okButton.GetCurrentPattern(InvokePattern.Pattern) as InvokePattern;
+                            invokePattern?.Invoke();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error: {ex.Message}");
+                    }
+
+                    // Check for new popups every second
+                    Thread.Sleep(1000);
+                }
+            }).Start();
+        }
+
     }
 }
