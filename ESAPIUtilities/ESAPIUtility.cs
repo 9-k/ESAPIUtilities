@@ -78,33 +78,48 @@ namespace ESAPIUtilities
 
         public static void AutoClickOk()
         {
-            new Thread(() =>
+            // Event handler for when a new window opens
+            AutomationEventHandler windowOpenedEventHandler = null;
+            windowOpenedEventHandler = (sender, e) =>
             {
-                while (true)
+                try
                 {
-                    try
+                    var window = sender as AutomationElement;
+                    if (window != null)
                     {
-                        // Look for windows with an "OK" button
-                        var rootElement = AutomationElement.RootElement;
-                        var okButton = rootElement.FindFirst(TreeScope.Descendants,
-                            new PropertyCondition(AutomationElement.NameProperty, "OK"));
+                        // Optionally, filter windows by process ID to ensure you're interacting with the correct application
+                        // int targetProcessId = Process.GetCurrentProcess().Id;
+                        // if (window.Current.ProcessId != targetProcessId) return;
 
-                        // Click "OK" if found
-                        if (okButton != null)
+                        // Find any button within the window
+                        var button = window.FindFirst(TreeScope.Descendants,
+                            new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button));
+
+                        if (button != null)
                         {
-                            var invokePattern = okButton.GetCurrentPattern(InvokePattern.Pattern) as InvokePattern;
+                            // Invoke the button (simulate a click)
+                            var invokePattern = button.GetCurrentPattern(InvokePattern.Pattern) as InvokePattern;
                             invokePattern?.Invoke();
+                            Console.WriteLine("Clicked OK button on a dialog.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("No button found in the dialog.");
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error: {ex.Message}");
-                    }
-
-                    // Check for new popups every second
-                    Thread.Sleep(1000);
                 }
-            }).Start();
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error handling window opened event: {ex.Message}");
+                }
+            };
+
+            // Subscribe to the WindowOpenedEvent
+            Automation.AddAutomationEventHandler(
+                WindowPattern.WindowOpenedEvent,
+                AutomationElement.RootElement,
+                TreeScope.Subtree,
+                windowOpenedEventHandler);
         }
 
     }
